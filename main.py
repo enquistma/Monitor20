@@ -1,31 +1,45 @@
 import ccxt
 import pandas as pd
-from ta.trend import SMAIndicator
 import time
+from ta.trend import SMAIndicator
+from email_helper import send_email
+from telegram_helper import send_telegram_message
 
-exchange = ccxt.binance({
-    'options': {'defaultType': 'future'}
-})
+import os
+from dotenv import load_dotenv
 
-def check_price(symbol):
+load_dotenv()
+
+exchange = ccxt.mexc({'options': {'defaultType': 'swap'}})
+
+def get_symbols():
+    markets = exchange.load_markets()
+    return [s for s in markets if s.endswith('/USDT:USDT') and markets[s]['active']]
+
+def check_ma(symbol):
     try:
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=50)
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe='5m', limit=50)
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         ma20 = SMAIndicator(df['close'], window=20).sma_indicator()
-        current = df['close'].iloc[-1]
-        ma_value = ma20.iloc[-1]
-        if current > ma_value * 1.15:
-            print(f"[ALERT] {symbol} 超过 MA20 +15%：当前价格 {current:.2f}, MA20 {ma_value:.2f}")
+        cur = df['close'].iloc[-1]
+        ma = ma20.iloc[-1]
+        if cur > ma * 1.10:
+            msg = f"[MEXC ALERT] {symbol} 超过 MA20 +10%：当前价格 {cur:.4f}, MA20 {ma:.4f}"
+            print(msg)
+            send_email("MEXC MA20 Alert", msg)
+            send_telegram_message(msg)
     except Exception as e:
         print(f"[ERROR] {symbol}: {e}")
 
 def main():
-    symbols = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']  # 可以扩展成所有合约
+    symbols = get_symbols()
+    print(f"监控 {len(symbols)} 个交易对")
     while True:
         for s in symbols:
-            check_price(s)
-            time.sleep(1)
-        time.sleep(300)  # 每5分钟检查一次
+            check_ma(s)
+            time.sleep(0.7)
+        print("=== 本轮完成，休息5分钟 ===")
+        time.sleep(300)
 
 if __name__ == "__main__":
     main()
