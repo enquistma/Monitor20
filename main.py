@@ -32,16 +32,16 @@ def check_ma(symbol):
         print(f"[ERROR] {symbol}: {e}")
 
 def main():
-symbols = get_symbols()
-print(f"监控 {len(symbols)} 个交易对")
-while True:
-    start = time.time()
-    for s in symbols:
-        check_ma(s)
-        time.sleep(0.3)  # 更快地遍历币种
-    print("=== 本轮完成，休息直到30秒满 ===")
-    elapsed = time.time() - start
-    time.sleep(max(0, 30 - elapsed))
+    symbols = get_symbols()
+    print(f"监控 {len(symbols)} 个交易对")
+    while True:
+        start = time.time()
+        for s in symbols:
+            check_ma(s)
+            time.sleep(0.3)
+        print("=== 本轮完成，休息直到30秒满 ===")
+        elapsed = time.time() - start
+        time.sleep(max(0, 30 - elapsed))
 
 if __name__ == "__main__":
     main()
