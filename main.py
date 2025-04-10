@@ -23,7 +23,7 @@ def check_ma(symbol):
         ma20 = SMAIndicator(df['close'], window=20).sma_indicator()
         cur = df['close'].iloc[-1]
         ma = ma20.iloc[-1]
-        if cur > ma * 1.05:
+        if cur > ma * 1.1:
             msg = f"[MEXC ALERT] {symbol} 超过 MA20 +10%：当前价格 {cur:.4f}, MA20 {ma:.4f}"
             print(msg)
             send_email("MEXC MA20 Alert", msg)
