@@ -44,14 +44,17 @@ async def monitor_all():
 
     while True:
         tasks = []
+
         for s in symbols_mexc:
             tasks.append(check_ma(exchange_mexc, s, sem_mexc))
         for s in symbols_gate:
             tasks.append(check_ma(exchange_gate, s, sem_gate))
 
+        print(f"本轮即将检查的交易对数量：{len(tasks)}")
+
         await asyncio.gather(*tasks)
         print("=== 本轮完成，等待30秒后继续 ===")
         await asyncio.sleep(30)
-
+        
 if __name__ == "__main__":
     asyncio.run(monitor_all())
