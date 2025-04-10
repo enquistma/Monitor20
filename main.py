@@ -45,3 +45,6 @@ while True:
 
 if __name__ == "__main__":
     main()
+
+send_telegram_message("✅ 测试提醒：服务运行中，触发条件为 MA20 +5%")
+
