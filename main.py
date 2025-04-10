@@ -13,21 +13,22 @@ semaphore = asyncio.Semaphore(8)
 
 async def check_ma(exchange, symbol):
     async with semaphore:
-    try:
-        ohlcv = await exchange.fetch_ohlcv(symbol, timeframe='5m', limit=50)
-        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        if len(df) < 20:
-            return
-        ma20 = SMAIndicator(df['close'], window=20).sma_indicator()
-        cur = df['close'].iloc[-1]
-        ma = ma20.iloc[-1]
-        if cur > ma * 1.10:
-            msg = f"[{exchange.id.upper()} ALERT] {symbol} 超过 MA20 +10%：当前 {cur:.4f}，MA20 {ma:.4f}"
-            print(msg)
-            send_email("MA20 Alert", msg)
-            send_telegram_message(msg)
-    except Exception as e:
-        print(f"[{exchange.id.upper()} ERROR] {symbol}: {e}")
+        try:
+            ohlcv = await exchange.fetch_ohlcv(symbol, timeframe='5m', limit=50)
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            if len(df) < 20:
+                return
+            ma20 = SMAIndicator(df['close'], window=20).sma_indicator()
+            cur = df['close'].iloc[-1]
+            ma = ma20.iloc[-1]
+            if cur > ma * 1.10:
+                msg = f"[{exchange.id.upper()} ALERT] {symbol} 超过 MA20 +10%：当前 {cur:.4f}，MA20 {ma:.4f}"
+                print(msg)
+                send_email("MA20 Alert", msg)
+                send_telegram_message(msg)
+        except Exception as e:
+            print(f"[{exchange.id.upper()} ERROR] {symbol}: {e}")
+
 
 async def monitor_all():
     exchange_mexc = ccxt.mexc({'options': {'defaultType': 'swap'}})
