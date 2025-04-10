@@ -9,7 +9,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+semaphore = asyncio.Semaphore(8)
+
 async def check_ma(exchange, symbol):
+    async with semaphore:
     try:
         ohlcv = await exchange.fetch_ohlcv(symbol, timeframe='5m', limit=50)
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
