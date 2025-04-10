@@ -29,7 +29,6 @@ async def check_ma(exchange, symbol):
         except Exception as e:
             print(f"[{exchange.id.upper()} ERROR] {symbol}: {e}")
 
-
 async def monitor_all():
     exchange_mexc = ccxt.mexc({'options': {'defaultType': 'swap'}})
     exchange_gate = ccxt.gateio({'options': {'defaultType': 'swap'}})
