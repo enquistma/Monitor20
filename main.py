@@ -9,10 +9,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-semaphore = asyncio.Semaphore(8)
+sem_mexc = asyncio.Semaphore(5)
+sem_gate = asyncio.Semaphore(5)
 
-async def check_ma(exchange, symbol):
-    async with semaphore:
+async def check_ma(exchange, symbol, sem):
+    async with sem:
         try:
             ohlcv = await exchange.fetch_ohlcv(symbol, timeframe='5m', limit=50)
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
@@ -44,9 +45,9 @@ async def monitor_all():
     while True:
         tasks = []
         for s in symbols_mexc:
-            tasks.append(check_ma(exchange_mexc, s))
+            tasks.append(check_ma(exchange_mexc, s, sem_mexc))
         for s in symbols_gate:
-            tasks.append(check_ma(exchange_gate, s))
+            tasks.append(check_ma(exchange_gate, s, sem_gate))
 
         await asyncio.gather(*tasks)
         print("=== 本轮完成，等待30秒后继续 ===")
@@ -54,4 +55,3 @@ async def monitor_all():
 
 if __name__ == "__main__":
     asyncio.run(monitor_all())
-
