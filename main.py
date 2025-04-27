@@ -2,6 +2,7 @@ import ccxt.async_support as ccxt
 import asyncio
 import pandas as pd
 import random
+import time
 from ta.trend import SMAIndicator
 from email_helper import send_email
 from telegram_helper import send_telegram_message
@@ -39,22 +40,29 @@ async def monitor_all():
     markets_mexc = await exchange_mexc.load_markets()
     markets_gate = await exchange_gate.load_markets()
 
-    symbols_mexc = [s for s in markets_mexc if s.endswith('/USDT:USDT') and markets_mexc[s]['active']]
-    symbols_gate = [s for s in markets_gate if s.endswith('/USDT:USDT') and markets_gate[s]['active']]
+    all_symbols_mexc = [s for s in markets_mexc if s.endswith('/USDT:USDT')]
+    all_symbols_gate = [s for s in markets_gate if s.endswith('/USDT:USDT')]
 
-    print(f"MEXC 合约数: {len(symbols_mexc)}, Gate 合约数: {len(symbols_gate)}", flush=True)
+    print(f"🛠️ MEXC 所有合约数: {len(all_symbols_mexc)}", flush=True)
+    print(f"🛠️ Gate 所有合约数: {len(all_symbols_gate)}", flush=True)
 
     while True:
+        start_time = time.time()
+
         tasks = []
-        for s in symbols_mexc:
+        for s in all_symbols_mexc:
             tasks.append(check_ma(exchange_mexc, s, sem_mexc))
-        for s in symbols_gate:
+        for s in all_symbols_gate:
             tasks.append(check_ma(exchange_gate, s, sem_gate))
 
         print(f"🚀 本轮即将检查的交易对数量：{len(tasks)}", flush=True)
 
         await asyncio.gather(*tasks)
-        print("✅ 本轮完成，等待30秒后继续", flush=True)
+
+        elapsed_time = time.time() - start_time
+        print(f"✅ 本轮检查完成，用时 {elapsed_time:.2f} 秒", flush=True)
+
+        print("⏳ 等待30秒后继续...", flush=True)
         await asyncio.sleep(30)
 
 if __name__ == "__main__":
