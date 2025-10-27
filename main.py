@@ -11,15 +11,19 @@ def send_telegram_message(text):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         print("🚫 TELEGRAM 配置缺失，无法发送消息")
         return
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
-    try:
-        r = requests.post(url, data=data, timeout=10)
-        if r.status_code != 200:
-            print(f"⚠️ Telegram 返回错误: {r.text}")
-    except Exception as e:
-        print(f"❌ Telegram 发送失败: {e}")
 
+    chat_ids = [cid.strip() for cid in TELEGRAM_CHAT_ID.split(',') if cid.strip()]
+    for cid in chat_ids:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        data = {"chat_id": cid, "text": text}
+        try:
+            response = requests.post(url, data=data, timeout=10)
+            if not response.ok:
+                print(f"⚠️ 发送到 {cid} 失败: {response.text}")
+        except Exception as e:
+            print(f"❌ Telegram 发送失败: {e}")
+
+semaphore = asyncio.Semaphore(8)
 sem_mexc = asyncio.Semaphore(8)
 sem_gate = asyncio.Semaphore(8)
 
@@ -63,7 +67,7 @@ async def check_ma(exchange, symbol, sem, failure_list):
             failure_list.append((exchange.id.upper(), symbol, str(e)))
 
 async def main():
-    send_telegram_message("✅ Render 启动成功（调试增强版）")
+    send_telegram_message("✅ Render 上部署成功，启动通知测试")
 
     exchange_mexc = ccxt.mexc()
     exchange_gate = ccxt.gate()
@@ -74,7 +78,7 @@ async def main():
         symbols_mexc = await fetch_symbols(exchange_mexc, 'custom_mexc.txt')
         symbols_gate = await fetch_symbols(exchange_gate, 'custom_gate.txt')
 
-        print(f"🔍 MEXC 合约数: {len(symbols_mexc)}, Gate 合约数: {len(symbols_gate)}")
+        print(f"🛠️ MEXC 合约数: {len(symbols_mexc)}, Gate 合约数: {len(symbols_gate)}")
 
         tasks = []
         failure_list = []
@@ -84,12 +88,12 @@ async def main():
         for s in symbols_gate:
             tasks.append(check_ma(exchange_gate, s, sem_gate, failure_list))
 
-        print(f"🚀 本轮即将检查交易对数：{len(tasks)}")
+        print(f"🚀 本轮即将检查的交易对数量：{len(tasks)}")
 
         await asyncio.gather(*tasks)
 
         elapsed = time.time() - start_time
-        print(f"✅ 本轮检查完成（耗时 {elapsed:.2f} 秒）")
+        print(f"✅ 本轮检查完成，用时 {elapsed:.2f} 秒")
 
         if failure_list:
             with open("failed_tokens.txt", "a", encoding='utf-8') as f:
@@ -97,9 +101,8 @@ async def main():
                     f.write(f"{exch},{symbol},{err}\n")
             print(f"⚠️ 本轮失败交易对数量：{len(failure_list)}")
 
-        print("⏳ 等待 30 秒后继续下一轮...\n")
+        print("⏳ 等待30秒后继续...")
         await asyncio.sleep(30)
 
 if __name__ == "__main__":
     asyncio.run(main())
-
