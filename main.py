@@ -1,69 +1,89 @@
-import ccxt.async_support as ccxt
 import asyncio
-import pandas as pd
-import random
+import ccxt.async_support as ccxt
 import time
-from ta.trend import SMAIndicator
-from email_helper import send_email
-from telegram_helper import send_telegram_message
 import os
 from dotenv import load_dotenv
-
 load_dotenv()
+import os
 
-sem_mexc = asyncio.Semaphore(5)
-sem_gate = asyncio.Semaphore(5)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+semaphore = asyncio.Semaphore(8)
+sem_mexc = asyncio.Semaphore(8)
+sem_gate = asyncio.Semaphore(8)
 
-async def check_ma(exchange, symbol, sem):
+def load_custom_tokens(path):
+    if not os.path.exists(path):
+        return []
+    with open(path, 'r') as f:
+        return [line.strip() for line in f if line.strip()]
+
+async def fetch_symbols(exchange, custom_path):
+    markets = await exchange.load_markets()
+    symbols = [s for s in markets if s.endswith('/USDT:USDT')]
+    extra = load_custom_tokens(custom_path)
+    combined = list(set(symbols + extra))
+    return combined
+
+async def fetch_ohlcv_safe(exchange, symbol):
+    try:
+        ohlcv = await exchange.fetch_ohlcv(symbol, timeframe='5m', limit=21)
+        return ohlcv
+    except Exception as e:
+        raise RuntimeError(f"Failed to fetch {symbol}: {e}")
+
+async def check_ma(exchange, symbol, sem, failure_list):
     async with sem:
         try:
-            await asyncio.sleep(random.uniform(0.05, 0.15))  # 防止请求过快
-            ohlcv = await exchange.fetch_ohlcv(symbol, timeframe='5m', limit=50)
-            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            if len(df) < 20:
-                return
-            ma20 = SMAIndicator(df['close'], window=20).sma_indicator()
-            cur = df['close'].iloc[-1]
-            ma = ma20.iloc[-1]
-            if cur > ma * 1.10:
-                msg = f"[{exchange.id.upper()} ALERT] {symbol} 超过 MA20 +10%：当前 {cur:.4f}，MA20 {ma:.4f}"
-                print(msg, flush=True)
-                send_email("MA20 Alert", msg)
-                send_telegram_message(msg)
+            ohlcv = await fetch_ohlcv_safe(exchange, symbol)
+            if len(ohlcv) < 21:
+                raise ValueError("Not enough data")
+
+            closes = [x[4] for x in ohlcv]
+            ma20 = sum(closes[-21:-1]) / 20
+            last = closes[-1]
+
+            if last > ma20 * 1.10:
+                print(f"📈 {exchange.id.upper()} {symbol} 当前价格高出 MA20 超过 10%：{last:.4f} > {ma20:.4f}", flush=True)
+
         except Exception as e:
-            print(f"[{exchange.id.upper()} ERROR] {symbol}: {e}", flush=True)
+            failure_list.append((exchange.id.upper(), symbol, str(e)))
 
-async def monitor_all():
-    exchange_mexc = ccxt.mexc({'options': {'defaultType': 'swap'}})
-    exchange_gate = ccxt.gateio({'options': {'defaultType': 'swap'}})
-
-    markets_mexc = await exchange_mexc.load_markets()
-    markets_gate = await exchange_gate.load_markets()
-
-    all_symbols_mexc = [s for s in markets_mexc if s.endswith('/USDT:USDT')]
-    all_symbols_gate = [s for s in markets_gate if s.endswith('/USDT:USDT')]
-
-    print(f"🛠️ MEXC 所有合约数: {len(all_symbols_mexc)}", flush=True)
-    print(f"🛠️ Gate 所有合约数: {len(all_symbols_gate)}", flush=True)
+async def main():
+    exchange_mexc = ccxt.mexc()
+    exchange_gate = ccxt.gate()
 
     while True:
         start_time = time.time()
 
-        tasks = []
-        for s in all_symbols_mexc:
-            tasks.append(check_ma(exchange_mexc, s, sem_mexc))
-        for s in all_symbols_gate:
-            tasks.append(check_ma(exchange_gate, s, sem_gate))
+        symbols_mexc = await fetch_symbols(exchange_mexc, 'custom_mexc.txt')
+        symbols_gate = await fetch_symbols(exchange_gate, 'custom_gate.txt')
 
-        print(f"🚀 本轮即将检查的交易对数量：{len(tasks)}", flush=True)
+        print(f"🛠️ MEXC 合约数: {len(symbols_mexc)}, Gate 合约数: {len(symbols_gate)}")
+
+        tasks = []
+        failure_list = []
+
+        for s in symbols_mexc:
+            tasks.append(check_ma(exchange_mexc, s, sem_mexc, failure_list))
+        for s in symbols_gate:
+            tasks.append(check_ma(exchange_gate, s, sem_gate, failure_list))
+
+        print(f"🚀 本轮即将检查的交易对数量：{len(tasks)}")
 
         await asyncio.gather(*tasks)
 
-        elapsed_time = time.time() - start_time
-        print(f"✅ 本轮检查完成，用时 {elapsed_time:.2f} 秒", flush=True)
+        elapsed = time.time() - start_time
+        print(f"✅ 本轮检查完成，用时 {elapsed:.2f} 秒")
 
-        print("⏳ 等待30秒后继续...", flush=True)
+        if failure_list:
+            with open("failed_tokens.txt", "a") as f:
+                for exch, symbol, err in failure_list:
+                    f.write(f"{exch},{symbol},{err}\n")
+            print(f"⚠️ 本轮失败交易对数量：{len(failure_list)}")
+
+        print("⏳ 等待30秒后继续...")
         await asyncio.sleep(30)
 
 if __name__ == "__main__":
-    asyncio.run(monitor_all())
+    asyncio.run(main())
