@@ -2,10 +2,8 @@ import asyncio
 import ccxt.async_support as ccxt
 import time
 import os
-from dotenv import load_dotenv
 import requests
 
-load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
