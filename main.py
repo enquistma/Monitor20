@@ -3,11 +3,24 @@ import ccxt.async_support as ccxt
 import time
 import os
 from dotenv import load_dotenv
+import requests
+
 load_dotenv()
-import os
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+def send_telegram_message(text):
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        print("🚫 TELEGRAM 配置缺失，无法发送消息")
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    data = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
+    try:
+        requests.post(url, data=data, timeout=10)
+    except Exception as e:
+        print(f"❌ Telegram 发送失败: {e}")
+
 semaphore = asyncio.Semaphore(8)
 sem_mexc = asyncio.Semaphore(8)
 sem_gate = asyncio.Semaphore(8)
@@ -15,7 +28,7 @@ sem_gate = asyncio.Semaphore(8)
 def load_custom_tokens(path):
     if not os.path.exists(path):
         return []
-    with open(path, 'r') as f:
+    with open(path, 'r', encoding='utf-8') as f:
         return [line.strip() for line in f if line.strip()]
 
 async def fetch_symbols(exchange, custom_path):
@@ -44,12 +57,16 @@ async def check_ma(exchange, symbol, sem, failure_list):
             last = closes[-1]
 
             if last > ma20 * 1.10:
-                print(f"📈 {exchange.id.upper()} {symbol} 当前价格高出 MA20 超过 10%：{last:.4f} > {ma20:.4f}", flush=True)
+                msg = f"📈 {exchange.id.upper()} {symbol}\n价格高出 MA20 超过 10%\n当前价：{last:.4f}\nMA20：{ma20:.4f}"
+                print(msg, flush=True)
+                send_telegram_message(msg)
 
         except Exception as e:
             failure_list.append((exchange.id.upper(), symbol, str(e)))
 
 async def main():
+    send_telegram_message("✅ Render 上部署成功，启动通知测试")
+
     exchange_mexc = ccxt.mexc()
     exchange_gate = ccxt.gate()
 
@@ -77,7 +94,7 @@ async def main():
         print(f"✅ 本轮检查完成，用时 {elapsed:.2f} 秒")
 
         if failure_list:
-            with open("failed_tokens.txt", "a") as f:
+            with open("failed_tokens.txt", "a", encoding='utf-8') as f:
                 for exch, symbol, err in failure_list:
                     f.write(f"{exch},{symbol},{err}\n")
             print(f"⚠️ 本轮失败交易对数量：{len(failure_list)}")
