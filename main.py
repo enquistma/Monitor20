@@ -59,7 +59,7 @@ async def check_ma(exchange, symbol, sem, failure_list):
             last = closes[-1]
 
             if last > ma20 * 1.10:
-                msg = f"📈 {exchange.id.upper()} {symbol}\n价格高出 MA20 超过 10%\n当前价：{last:.4f}\nMA20：{ma20:.4f}"
+                msg = f"📈 {exchange.id.upper()} {symbol}\n价格高出 MA20 超过 10%\n当前价：{last:.4f}\nMA20+20%：{ma20*1.2:.4f}"
                 print(msg, flush=True)
                 send_telegram_message(msg)
 
